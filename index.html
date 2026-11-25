@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Controle de Produção Odontológica</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--a:#1e5aa8;--b:#eaf1fb;--t:#1f2a37;--g:#6b7785;--l:#d5dde8}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;color:var(--t);background:#f1f5fa}
+header{background:var(--a);color:#fff;padding:16px;font-weight:600;border-radius:0 0 24px 24px}
+nav{display:flex;gap:8px;overflow-x:auto;padding:12px 14px}
+nav button{flex:none;border:0;background:#fff;padding:9px 16px;font-size:14px;color:var(--g);border-radius:999px;box-shadow:0 1px 3px #0001}
+nav button.on{background:var(--a);color:#fff;font-weight:600}
+main{padding:0 14px 20px;max-width:900px;margin:auto}section{display:none}section.on{display:block}
+.card{background:#fff;border:1px solid var(--l);border-radius:22px;padding:16px;margin-bottom:14px;box-shadow:0 2px 8px #1e5aa810}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+input,select,textarea{font:inherit;padding:10px 12px;border:1px solid var(--l);border-radius:14px;width:100%;background:#fff}
+button.p{font:inherit;padding:10px 16px;border:0;border-radius:999px;background:var(--a);color:#fff;cursor:pointer;width:100%}
+button.s{background:var(--b);color:var(--a)}
+.tw{overflow-x:auto;border-radius:14px}table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px;border-bottom:1px solid var(--l);text-align:left;white-space:nowrap}th{color:var(--g);font-weight:600}
+.tot{display:flex;gap:8px;flex-wrap:wrap;font-weight:600;margin:10px 0}.tot span{background:var(--b);padding:7px 12px;border-radius:999px}
+.x{color:#c0392b;background:none;border:0;cursor:pointer;font-size:18px}.e{color:var(--a);background:none;border:0;cursor:pointer;font-size:18px}
+h3{margin:2px 0 12px}.note,.pr{white-space:normal;background:var(--b);border-radius:16px;padding:12px;margin:8px 0}
+.pr{cursor:pointer}.pr small,.step small{color:var(--g)}
+.step{border-left:3px solid var(--a);background:var(--b);border-radius:0 16px 16px 0;padding:10px 12px;margin:10px 0}.gap{height:8px}
+#modal,#cmodal{position:fixed;inset:0;background:#0007;display:flex;align-items:center;justify-content:center;padding:16px;z-index:9}
+#modal[hidden],#cmodal[hidden],#toast[hidden]{display:none}.mbox{background:#fff;border-radius:24px;padding:18px;width:100%;max-width:420px;max-height:90vh;overflow:auto}
+#toast{position:fixed;left:16px;right:16px;bottom:24px;background:#1f2a37;color:#fff;padding:14px 16px;border-radius:18px;z-index:20;text-align:center}
+label{font-size:13px;color:var(--g)}
+</style></head><body>
+<header>🦷 Controle de Produção Odontológica</header>
+<nav id="nav"></nav>
+<main>
+
+<section id="producao">
+<div class="card"><h3>Novo atendimento</h3>
+<div class="row"><input type="date" id="p_data"><input id="p_pac" placeholder="Paciente" list="pacs"><input id="p_proc" placeholder="Procedimento">
+<input type="number" step="0.01" id="p_val" placeholder="Valor pago (R$)"><input type="number" step="0.01" id="p_com" placeholder="Comissão %"></div>
+<datalist id="pacs"></datalist><div class="gap"></div><button class="p" onclick="addProd()">Adicionar</button></div>
+<div class="card"><div class="row"><input type="month" id="p_mes" onchange="render()">
+<button class="p s" onclick="exportar('csv')">Baixar CSV</button><button class="p s" onclick="exportar('xlsx')">Baixar Excel (.xlsx)</button></div>
+<div class="tot" id="p_tot"></div><div class="tw"><table id="p_tab"></table></div></div>
+</section>
+
+<section id="proteses">
+<div id="t_lista">
+<div class="card"><h3>Novo prontuário protético</h3>
+<div class="row"><input id="t_pac" placeholder="Nome do paciente" list="pacs"><input id="t_proc" placeholder="Procedimento (ex.: coroa no dente 26)"></div><div class="gap"></div>
+<button class="p" onclick="addPront()">Criar prontuário</button></div>
+<div class="card"><input id="t_busca" placeholder="Buscar paciente..." oninput="render()"><div id="t_cards"></div></div>
+</div>
+<div id="t_det" hidden>
+<div class="card"><button class="p s" onclick="V=null;render()">← Voltar</button><div class="gap"></div>
+<h3 id="t_nome"></h3><div id="t_procl" style="margin-bottom:8px"></div><div class="tot" id="t_tot"></div>
+<button class="p s" onclick="abrirEd('pront',V)">✎ Editar paciente / procedimento</button></div>
+<div class="card"><h3>Nova etapa</h3>
+<div class="row"><input type="date" id="s_data"><input id="s_et" placeholder="Etapa (ex.: moldagem)"><input id="s_lab" placeholder="Laboratório">
+<input type="number" step="0.01" id="s_val" placeholder="Valor a pagar (R$)"></div><div class="gap"></div>
+<button class="p" onclick="addStep()">Salvar etapa</button></div>
+<div class="card"><h3>Histórico de etapas</h3><div id="t_steps"></div></div>
+</div>
+</section>
+
+<section id="material">
+<div class="card"><h3>Material / EPI em falta</h3>
+<div class="row"><input id="m_nome" placeholder="Material ou EPI"><input id="m_qtd" placeholder="Quantidade"></div><div class="gap"></div>
+<button class="p" onclick="addMat()">Adicionar à lista</button></div>
+<div class="card"><div class="tw"><table id="m_tab"></table></div></div>
+</section>
+
+<section id="obs">
+<div class="card"><h3>Observações do paciente</h3>
+<input id="o_pac" placeholder="Paciente" list="pacs"><div class="gap"></div>
+<textarea id="o_txt" rows="3" placeholder="Ex.: fez canal em outro local e quer pino e coroa aqui"></textarea><div class="gap"></div>
+<button class="p" onclick="addObs()">Salvar observação</button></div>
+<div class="card"><h3>Consultar</h3><input id="o_busca" placeholder="Buscar paciente..." oninput="render()"><div id="o_lista"></div></div>
+</section>
+
+<section id="config">
+<div class="card"><h3>Configurações</h3>
+<label>Comissão padrão (%) — pode ser alterada em cada atendimento</label><div class="gap"></div>
+<input type="number" step="0.1" id="c_com" onchange="D.com=+this.value||0;save()"><div class="gap"></div>
+<button class="p s" onclick="backup()">Baixar backup dos dados</button></div>
+<div class="card" style="color:var(--g);font-size:13px">Os dados ficam salvos só neste aparelho (navegador). Faça backup de vez em quando.</div>
+</section>
+</main>
+
+<div id="modal" hidden><div class="mbox"><h3 id="m_t">Editar</h3><div id="m_f"></div>
+<button class="p" onclick="salvarEd()">Salvar alteração</button><div class="gap"></div><button class="p s" onclick="fechar()">Cancelar</button></div></div>
+
+<div id="cmodal" hidden><div class="mbox"><h3>Apagar item?</h3><p style="color:var(--g)">Essa ação não pode ser desfeita.</p>
+<button class="p" style="background:#c0392b" onclick="CF();$('cmodal').hidden=true">Apagar</button><div class="gap"></div><button class="p s" onclick="$('cmodal').hidden=true">Cancelar</button></div></div>
+<div id="toast" hidden></div>
+
+<script>
+// ===== Dados (LocalStorage) =====
+let D;try{D=JSON.parse(localStorage.getItem('odonto'))}catch(e){}
+D=D||{com:35,prod:[],prot:[],mat:[],obs:[]};
+// migra protéticos antigos (1 linha por serviço) para prontuários com etapas
+if(D.prot.length&&!D.prot[0].steps){const g={};D.prot.forEach(x=>{(g[x.pac]=g[x.pac]||{pac:x.pac,proc:'',steps:[]}).steps.push({d:x.d,et:x.obs,lab:x.lab,v:x.v,ok:x.ok})});D.prot=Object.values(g)}
+let V=null,EDI=null; // V = prontuário aberto; EDI = item em edição
+const save=()=>{try{localStorage.setItem('odonto',JSON.stringify(D))}catch(e){}render()};
+const $=i=>document.getElementById(i);
+const R=v=>'R$ '+(+v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const dt=s=>s?s.split('-').reverse().join('/'):'';
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const hoje=()=>new Date().toISOString().slice(0,10);
+let CF=null,TT;
+const apagar=(arr,i)=>{CF=()=>{arr.splice(i,1);save()};$('cmodal').hidden=false};
+function aviso(m){$('toast').textContent=m;$('toast').hidden=false;clearTimeout(TT);TT=setTimeout(()=>$('toast').hidden=true,3500)}
+const btns=(e,d)=>`<td><button class="e" onclick="${e}">✎</button><button class="x" onclick="${d}">✕</button></td>`;
+
+// ===== Navegação =====
+const tabs=[['producao','Produção'],['proteses','Protético'],['material','Material'],['obs','Observações'],['config','Config']];
+$('nav').innerHTML=tabs.map(t=>`<button onclick="go('${t[0]}')" id="b_${t[0]}">${t[1]}</button>`).join('');
+function go(id){tabs.forEach(t=>{$(t[0]).classList.toggle('on',t[0]==id);$('b_'+t[0]).classList.toggle('on',t[0]==id)})}
+
+// ===== Editar (janela por cima da tela, sempre visível) =====
+const FLD={prod:[['d','Data','date'],['pac','Paciente'],['proc','Procedimento'],['v','Valor pago (R$)','number'],['c','Comissão %','number']],
+ mat:[['n','Material / EPI'],['q','Quantidade']],obs:[['pac','Paciente'],['t','Observação','area']],
+ step:[['d','Data','date'],['et','Etapa'],['lab','Laboratório'],['v','Valor a pagar (R$)','number']],
+ pront:[['pac','Paciente'],['proc','Procedimento em andamento']]};
+const REQ={prod:['pac','v'],mat:['n'],obs:['pac','t'],step:['et'],pront:['pac']};
+function abrirEd(k,i){const arr=k=='step'?D.prot[V].steps:k=='pront'?D.prot:D[k];EDI={k,i,arr};const x=arr[i];
+ $('m_f').innerHTML=FLD[k].map(f=>{const id='ed_'+f[0],v=esc(x[f[0]]);
+  return `<label>${f[1]}</label>`+(f[2]=='area'?`<textarea id="${id}" rows="4">${v}</textarea>`:`<input id="${id}" type="${f[2]||'text'}" ${f[2]=='number'?'step="0.01"':''} value="${v}">`)+'<div class="gap"></div>'}).join('');
+ $('modal').hidden=false}
+function fechar(){$('modal').hidden=true;EDI=null}
+function salvarEd(){const{k,i,arr}=EDI,o={...arr[i]};
+ FLD[k].forEach(f=>{const v=$('ed_'+f[0]).value;o[f[0]]=f[2]=='number'?(+v||0):v.trim()});
+ if(REQ[k].some(f=>!o[f]))return aviso('Preencha os campos principais.');
+ arr[i]=o;fechar();save()}
+
+// ===== Produção =====
+function addProd(){const v=+$('p_val').value;if(!$('p_pac').value||!v)return aviso('Informe paciente e valor.');
+ D.prod.push({d:$('p_data').value||hoje(),pac:$('p_pac').value.trim(),proc:$('p_proc').value.trim(),v,c:$('p_com').value===''?D.com:+$('p_com').value});
+ ['p_pac','p_proc','p_val','p_com'].forEach(i=>$(i).value='');save()}
+
+// ===== Protético (prontuário) =====
+function addPront(){const n=$('t_pac').value.trim();if(!n)return aviso('Informe o paciente.');
+ let i=D.prot.findIndex(x=>x.pac.toLowerCase()==n.toLowerCase());
+ if(i<0){D.prot.push({pac:n,proc:$('t_proc').value.trim(),steps:[]});i=D.prot.length-1}
+ else if($('t_proc').value.trim())D.prot[i].proc=$('t_proc').value.trim();
+ $('t_pac').value=$('t_proc').value='';V=i;save()}
+function addStep(){if(!$('s_et').value)return aviso('Descreva a etapa.');
+ D.prot[V].steps.push({d:$('s_data').value||hoje(),et:$('s_et').value,lab:$('s_lab').value,v:+$('s_val').value||0,ok:false});
+ ['s_et','s_lab','s_val'].forEach(i=>$(i).value='');save()}
+
+// ===== Material / Observações =====
+function addMat(){if(!$('m_nome').value)return;D.mat.push({n:$('m_nome').value,q:$('m_qtd').value});$('m_nome').value=$('m_qtd').value='';save()}
+function addObs(){if(!$('o_pac').value||!$('o_txt').value)return;D.obs.push({d:hoje(),pac:$('o_pac').value.trim(),t:$('o_txt').value});$('o_txt').value='';save()}
+
+// ===== Baixar arquivos (vai para a pasta de downloads / Arquivos do celular) =====
+async function salvarArq(nome,data,mime){
+ let dl=null;try{if(window.claude&&claude.use)dl=await claude.use('downloads')}catch(e){}
+ if(dl){try{await dl.save({filename:nome,data});}catch(e){if(!e||e.code!='declined')aviso('Não foi possível salvar: '+((e&&(e.message||e.code))||'erro'))}return}
+ const b=data instanceof Blob?data:new Blob([data],{type:mime||'application/octet-stream'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=nome;document.body.appendChild(a);a.click();
+ setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000)}
+function mesAtual(){return $('p_mes').value||hoje().slice(0,7)}
+function exportar(tipo){const m=mesAtual(),L=D.prod.filter(x=>x.d.startsWith(m)).sort((a,b)=>a.d<b.d?-1:1);
+ if(!L.length)return aviso('Sem lançamentos neste mês.');
+ const cab=['Data','Paciente','Procedimento','Valor pago','Comissão %','Valor da comissão'];
+ const tv=L.reduce((s,x)=>s+x.v,0),tc=L.reduce((s,x)=>s+x.v*x.c/100,0),n2=v=>(+v).toFixed(2);
+ if(tipo=='xlsx'){
+  if(typeof XLSX=='undefined')return aviso('O Excel precisa de internet na primeira vez. Use "Baixar CSV", que abre no Excel.');
+  const rows=[cab].concat(L.map(x=>[dt(x.d),x.pac,x.proc,+n2(x.v),x.c,+n2(x.v*x.c/100)]),[['TOTAL','','',+n2(tv),'',+n2(tc)]]);
+  const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:11},{wch:26},{wch:26},{wch:13},{wch:11},{wch:17}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Produção '+m);
+  salvarArq('producao-'+m+'.xlsx',new Blob([XLSX.write(wb,{type:'array',bookType:'xlsx'})]),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')}
+ else{const c=v=>String(v).replace('.',','),rows=[cab].concat(L.map(x=>[dt(x.d),x.pac,x.proc,c(n2(x.v)),x.c,c(n2(x.v*x.c/100))]),[['TOTAL','','',c(n2(tv)),'',c(n2(tc))]]);
+  salvarArq('producao-'+m+'.csv','\ufeff'+rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\n'),'text/csv')}}
+function backup(){salvarArq('backup-producao.json',JSON.stringify(D),'application/json')}
+
+// ===== Tela =====
+function render(){
+ $('c_com').value=D.com;$('p_com').placeholder='Comissão % (padrão '+D.com+')';
+ $('pacs').innerHTML=[...new Set([...D.prod,...D.prot,...D.obs].map(x=>x.pac))].map(p=>`<option value="${esc(p)}">`).join('');
+ if(!$('s_data').value)$('s_data').value=hoje();
+ const m=mesAtual();if(!$('p_mes').value)$('p_mes').value=m;
+ const L=D.prod.map((x,i)=>({...x,i})).filter(x=>x.d.startsWith(m)).sort((a,b)=>a.d<b.d?-1:1);
+ const tv=L.reduce((s,x)=>s+x.v,0),tc=L.reduce((s,x)=>s+x.v*x.c/100,0);
+ $('p_tot').innerHTML=`<span>Total pago: ${R(tv)}</span><span>Minha comissão: ${R(tc)}</span><span>${L.length} atendimentos</span>`;
+ $('p_tab').innerHTML='<tr><th>Data</th><th>Paciente</th><th>Procedimento</th><th>Valor</th><th>%</th><th>Comissão</th><th></th></tr>'+
+  L.map(x=>`<tr><td>${dt(x.d)}</td><td>${esc(x.pac)}</td><td>${esc(x.proc)}</td><td>${R(x.v)}</td><td>${x.c}</td><td>${R(x.v*x.c/100)}</td>${btns(`abrirEd('prod',${x.i})`,`apagar(D.prod,${x.i})`)}</tr>`).join('');
+ if(V!==null&&!D.prot[V])V=null;
+ $('t_lista').hidden=V!==null;$('t_det').hidden=V===null;
+ const pend=p=>p.steps.filter(s=>!s.ok).reduce((a,s)=>a+s.v,0);
+ const q=$('t_busca').value.trim().toLowerCase();
+ $('t_cards').innerHTML=D.prot.map((p,i)=>({p,i})).filter(o=>!q||o.p.pac.toLowerCase().includes(q)).map(o=>{const u=o.p.steps[o.p.steps.length-1];
+  return `<div class="pr" onclick="V=${o.i};render();window.scrollTo(0,0)"><b>${esc(o.p.pac)}</b>${o.p.proc?' — '+esc(o.p.proc):''}<br><small>${o.p.steps.length} etapa(s)${u?' · última: '+esc(u.et):''} · a pagar: ${R(pend(o.p))}</small></div>`}).join('')||'<p style="color:var(--g)">Nenhum prontuário.</p>';
+ if(V!==null){const p=D.prot[V];$('t_nome').textContent='Prontuário: '+p.pac;
+  $('t_procl').innerHTML=p.proc?'<b>Procedimento:</b> '+esc(p.proc):'<span style="color:var(--g)">Sem procedimento informado (toque em editar)</span>';
+  $('t_tot').innerHTML=`<span>Total: ${R(p.steps.reduce((a,s)=>a+s.v,0))}</span><span>A pagar ao lab: ${R(pend(p))}</span>`;
+  $('t_steps').innerHTML=p.steps.map((s,i)=>({s,i})).sort((a,b)=>a.s.d<b.s.d?-1:1).map(o=>`<div class="step"><b>${dt(o.s.d)}</b> — ${esc(o.s.et)}<br><small>Lab: ${esc(o.s.lab)||'—'} · ${R(o.s.v)}</small><br>
+   <label style="color:var(--t)"><input type="checkbox" style="width:auto" ${o.s.ok?'checked':''} onchange="D.prot[V].steps[${o.i}].ok=this.checked;save()"> pago</label>
+   <button class="e" onclick="abrirEd('step',${o.i})">✎</button><button class="x" onclick="apagar(D.prot[V].steps,${o.i})">✕</button></div>`).join('')||'<p style="color:var(--g)">Nenhuma etapa registrada.</p>'}
+ $('m_tab').innerHTML='<tr><th>Item</th><th>Qtd</th><th></th></tr>'+D.mat.map((x,i)=>`<tr><td>${esc(x.n)}</td><td>${esc(x.q)}</td>${btns(`abrirEd('mat',${i})`,`apagar(D.mat,${i})`)}</tr>`).join('');
+ const b=$('o_busca').value.trim().toLowerCase();
+ $('o_lista').innerHTML=D.obs.map((x,i)=>({...x,i})).filter(x=>!b||x.pac.toLowerCase().includes(b)).reverse()
+  .map(x=>`<div class="note"><b>${esc(x.pac)}</b> · ${dt(x.d)} <button class="e" onclick="abrirEd('obs',${x.i})">✎</button><button class="x" onclick="apagar(D.obs,${x.i})">✕</button><br>${esc(x.t)}</div>`).join('')||'<p style="color:var(--g)">Nenhuma observação.</p>';
+}
+$('p_data').value=hoje();go('producao');render();
+</script></body></html>
